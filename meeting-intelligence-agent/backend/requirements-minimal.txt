@@ -1,0 +1,35 @@
+# =====================================================
+#  SyncMinds - Minimal Requirements (Fast Local Dev)
+#  Run: pip install -r requirements-minimal.txt
+#  Heavy AI packages (torch, whisper, pyannote) are
+#  optional — app starts and runs without them.
+# =====================================================
+
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+email-validator==2.1.0.post1
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Redis & Caching (optional at runtime)
+redis==5.0.1
+
+# Task Queue
+celery==5.3.6
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+python-multipart==0.0.6
+
+# AI Clients (API-only, no local model)
+openai==1.10.0
+anthropic==0.8.1
+tiktoken==0.5.2

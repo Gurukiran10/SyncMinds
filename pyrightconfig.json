@@ -1,0 +1,17 @@
+{
+  "include": ["meeting-intelligence-agent/backend"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    ".git",
+    "main.py",
+    "meeting-intelligence-agent/frontend",
+    "meeting-intelligence-agent/frontend/**",
+    "node_modules/**"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.9"
+}

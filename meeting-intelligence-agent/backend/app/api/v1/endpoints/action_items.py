@@ -1,0 +1,282 @@
+"""Action Items API Endpoints"""
+from typing import List, Optional
+from datetime import datetime
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import select, or_, case
+from pydantic import BaseModel
+
+from app.core.database import get_db
+from app.models.action_item import ActionItem
+from app.models.meeting import Meeting
+from app.models.user import User
+from app.api.v1.endpoints.auth import get_current_user
+
+router = APIRouter()
+
+
+class ActionItemCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    meeting_id: UUID
+    owner_id: Optional[UUID] = None
+    due_date: Optional[datetime] = None
+    priority: str = "medium"
+    category: Optional[str] = None
+    tags: List[str] = []
+
+
+class ActionItemUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    owner_id: Optional[UUID] = None
+    due_date: Optional[datetime] = None
+    priority: Optional[str] = None
+
+
+class ActionItemResponse(BaseModel):
+    id: UUID
+    title: str
+    description: Optional[str]
+    meeting_id: UUID
+    category: Optional[str]
+    owner_id: Optional[UUID]
+    status: str
+    priority: str
+    due_date: Optional[datetime]
+    completed_at: Optional[datetime]
+    extraction_method: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+@router.post("/", response_model=ActionItemResponse, status_code=status.HTTP_201_CREATED)
+async def create_action_item(
+    item_data: ActionItemCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create new action item"""
+    # Ensure the meeting exists and user has access to it
+    meeting_result = db.execute(
+        select(Meeting).where(Meeting.id == item_data.meeting_id)
+    )
+    meeting = meeting_result.scalar_one_or_none()
+
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    if (
+        meeting.organizer_id != current_user.id
+        and str(current_user.id) not in (meeting.attendee_ids or [])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied for this meeting",
+        )
+
+    owner_id = item_data.owner_id or current_user.id
+
+    action_item = ActionItem(
+        **item_data.model_dump(exclude={"owner_id"}),
+        owner_id=owner_id,
+        extraction_method="manual",
+    )
+    
+    db.add(action_item)
+    db.commit()
+    db.refresh(action_item)
+
+    # Auto-create Linear issue if user has Linear connected
+    linear_creds = (current_user.integrations or {}).get("linear", {})
+    if linear_creds.get("api_key"):
+        try:
+            import asyncio
+            import httpx
+
+            async def _push_to_linear():
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(
+                        "https://api.linear.app/graphql",
+                        headers={"Authorization": linear_creds["api_key"], "Content-Type": "application/json"},
+                        json={"query": "{ teams { nodes { id name } } }"},
+                    )
+                teams = r.json().get("data", {}).get("teams", {}).get("nodes", [])
+                if not teams:
+                    return
+                team_id = teams[0]["id"]
+                mutation = """
+                mutation CreateIssue($teamId: String!, $title: String!, $description: String) {
+                  issueCreate(input: { teamId: $teamId, title: $title, description: $description }) {
+                    success
+                    issue { id identifier url }
+                  }
+                }
+                """
+                desc = action_item.description or f"Action item from meeting"
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        "https://api.linear.app/graphql",
+                        headers={"Authorization": linear_creds["api_key"], "Content-Type": "application/json"},
+                        json={"query": mutation, "variables": {"teamId": team_id, "title": action_item.title, "description": desc}},
+                    )
+
+            asyncio.create_task(_push_to_linear())
+        except Exception:
+            pass  # Linear sync is non-fatal
+
+    return action_item
+
+
+@router.get("/", response_model=List[ActionItemResponse])
+async def list_action_items(
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List user's action items"""
+    query = select(ActionItem).where(
+        or_(
+            ActionItem.owner_id == current_user.id,
+            ActionItem.collaborator_ids.contains([str(current_user.id)]),
+            ActionItem.collaborator_ids.contains(str(current_user.id)),
+        )
+    )
+    
+    if status:
+        query = query.where(ActionItem.status == status)
+    if priority:
+        query = query.where(ActionItem.priority == priority)
+
+    query = query.order_by(
+        case((ActionItem.status == "completed", 1), else_=0),
+        ActionItem.due_date.is_(None),
+        ActionItem.due_date.asc(),
+        ActionItem.created_at.desc(),
+    ).offset(skip).limit(limit)
+    
+    result = db.execute(query)
+    items = result.scalars().all()
+    
+    return items
+
+
+@router.get("/{item_id}", response_model=ActionItemResponse)
+async def get_action_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get action item details"""
+    result = db.execute(
+        select(ActionItem).where(ActionItem.id == item_id)
+    )
+    item = result.scalar_one_or_none()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action item not found",
+        )
+
+    if (
+        item.owner_id != current_user.id
+        and str(current_user.id) not in (item.collaborator_ids or [])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    return item
+
+
+@router.patch("/{item_id}", response_model=ActionItemResponse)
+async def update_action_item(
+    item_id: UUID,
+    update_data: ActionItemUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update action item"""
+    result = db.execute(
+        select(ActionItem).where(ActionItem.id == item_id)
+    )
+    item = result.scalar_one_or_none()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action item not found",
+        )
+
+    if (
+        item.owner_id != current_user.id
+        and str(current_user.id) not in (item.collaborator_ids or [])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    # Update fields
+    for field, value in update_data.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    
+    # Handle completion
+    if update_data.status == "completed":
+        if not item.completed_at:  # type: ignore
+            item.completed_at = datetime.utcnow()  # type: ignore
+    elif update_data.status and item.completed_at:
+        item.completed_at = None  # type: ignore
+    
+    db.commit()
+    db.refresh(item)
+    
+    return item
+
+
+@router.post("/{item_id}/complete", response_model=ActionItemResponse)
+async def complete_action_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark action item as complete"""
+    result = db.execute(
+        select(ActionItem).where(ActionItem.id == item_id)
+    )
+    item = result.scalar_one_or_none()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action item not found",
+        )
+
+    if (
+        item.owner_id != current_user.id
+        and str(current_user.id) not in (item.collaborator_ids or [])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    item.status = "completed"  # type: ignore
+    item.completed_at = datetime.utcnow()  # type: ignore
+    
+    db.commit()
+    db.refresh(item)
+    
+    return item
