@@ -9,6 +9,8 @@ import Mentions from './pages/Mentions'
 import Analytics from './pages/Analytics'
 import Integrations from './pages/Integrations'
 import Settings from './pages/Settings'
+import Decisions from './pages/Decisions'
+import Knowledge from './pages/Knowledge'
 import Login from './pages/Login'
 import Layout from './components/Layout'
 import './index.css'
@@ -51,6 +53,8 @@ function App() {
             <Route path="action-items" element={<ActionItems />} />
             <Route path="mentions" element={<Mentions />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="decisions" element={<Decisions />} />
+            <Route path="knowledge" element={<Knowledge />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="settings" element={<Settings />} />
           </Route>

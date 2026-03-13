@@ -10,6 +10,8 @@ import {
   Settings,
   LogOut,
   Plug,
+  Brain,
+  Vote,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { clearTokens } from '../lib/auth'
@@ -31,6 +33,8 @@ const Layout: React.FC = () => {
     { name: 'Action Items', to: '/action-items', icon: CheckSquare },
     { name: 'Mentions', to: '/mentions', icon: Bell },
     { name: 'Analytics', to: '/analytics', icon: BarChart3 },
+    { name: 'Decisions', to: '/decisions', icon: Vote },
+    { name: 'Knowledge', to: '/knowledge', icon: Brain },
     { name: 'Integrations', to: '/integrations', icon: Plug },
     { name: 'Settings', to: '/settings', icon: Settings },
   ]
