@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.action_item import ActionItem
 from app.models.meeting import Meeting
 from app.models.user import User
@@ -17,6 +18,8 @@ from app.services.ai.nlp import nlp_service
 from app.services.integrations.slack import slack_service
 
 logger = logging.getLogger(__name__)
+
+APP_BASE_URL = settings.APP_BASE_URL
 
 
 class PreMeetingBriefService:
@@ -332,7 +335,7 @@ class PreMeetingBriefService:
                 recipient_email=str(getattr(user, "email", "")),
                 mention_data={"type": "pre_meeting_brief"},
                 meeting_title=str(getattr(meeting, "title", "")),
-                meeting_url=f"http://localhost:3000/meetings/{getattr(meeting, 'id', '')}",
+                meeting_url=f"{APP_BASE_URL}/meetings/{getattr(meeting, 'id', '')}",
             )
             # Actually send the brief
             _username = str(getattr(user, "username", "") or "")
@@ -398,7 +401,7 @@ class PreMeetingBriefService:
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "View Full Brief"},
-                    "url": f"http://localhost:3000/meetings/{meeting.id}",
+                    "url": f"{APP_BASE_URL}/meetings/{meeting.id}",
                     "style": "primary",
                 }
             ],

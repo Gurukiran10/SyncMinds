@@ -133,6 +133,26 @@ async def _process_meeting_async(meeting_id: str, recording_path: str):  # type:
             meeting.discussion_topics = summary.discussion_topics  # type: ignore
             meeting.sentiment_score = summary.sentiment_score  # type: ignore
 
+            # Compute meeting quality score
+            try:
+                from app.services.attendee_optimizer import compute_meeting_quality_score
+                scheduled_start = meeting.scheduled_start
+                scheduled_end = meeting.scheduled_end
+                if scheduled_start and scheduled_end:
+                    duration_minutes = (scheduled_end - scheduled_start).total_seconds() / 60
+                else:
+                    duration_minutes = 60
+                meeting.meeting_quality_score = compute_meeting_quality_score(  # type: ignore
+                    executive_summary=summary.executive_summary or "",
+                    decisions=summary.decisions,
+                    action_items=summary.action_items,
+                    sentiment_score=summary.sentiment_score or 0.0,
+                    duration_minutes=duration_minutes,
+                    attendee_count=len(meeting.attendee_ids or []),
+                )
+            except Exception as qs_err:
+                logger.warning(f"Quality score computation failed (non-fatal): {qs_err}")
+
             candidate_users = db.execute(select(User).where(User.is_active.is_(True))).scalars().all()
             
             # Save action items
@@ -176,6 +196,13 @@ async def _process_meeting_async(meeting_id: str, recording_path: str):  # type:
             meeting.status = "completed"  # type: ignore
             db.commit()
 
+            # Step 2.6: Index meeting for semantic search
+            try:
+                from app.services.knowledge.embeddings import index_meeting
+                index_meeting(db, meeting, full_transcript)
+            except Exception as idx_err:
+                logger.warning(f"Knowledge indexing failed (non-fatal): {idx_err}")
+
             # Step 3: Send Slack notification (if organizer has Slack connected)
             if organizer:
                 slack_creds = (organizer.integrations or {}).get("slack", {})
@@ -191,6 +218,21 @@ async def _process_meeting_async(meeting_id: str, recording_path: str):  # type:
                         )
                     except Exception as slack_err:
                         logger.warning(f"Slack notification failed (non-fatal): {slack_err}")
+                elif organizer.email:
+                    # Fallback: send summary via email when Slack is not connected
+                    try:
+                        from app.services.notifications.email import send_post_meeting_summary
+                        from app.core.config import settings as _settings
+                        await send_post_meeting_summary(
+                            user_email=str(organizer.email),
+                            meeting_title=str(meeting.title),
+                            executive_summary=summary.executive_summary or "",
+                            decisions=[d.dict() for d in summary.decisions],
+                            action_items=[a.dict() for a in summary.action_items],
+                            meeting_url=f"{_settings.APP_BASE_URL}/meetings/{meeting.id}",
+                        )
+                    except Exception as email_err:
+                        logger.warning(f"Email notification failed (non-fatal): {email_err}")
 
             # Step 4: Create Linear issues for action items (if organizer has Linear connected)
             if organizer and summary.action_items:
@@ -205,6 +247,39 @@ async def _process_meeting_async(meeting_id: str, recording_path: str):  # type:
                         )
                     except Exception as linear_err:
                         logger.warning(f"Linear sync failed (non-fatal): {linear_err}")
+
+            # Step 5: Create Jira issues for action items (if organizer has Jira connected)
+            if organizer and summary.action_items:
+                jira_creds = (organizer.integrations or {}).get("jira", {})
+                if jira_creds.get("api_token") and jira_creds.get("default_project"):
+                    try:
+                        logger.info(f"Creating Jira issues for meeting {meeting_id}")
+                        await _create_jira_issues(
+                            jira_url=jira_creds.get("url", ""),
+                            username=jira_creds.get("username", ""),
+                            api_token=jira_creds["api_token"],
+                            project_key=jira_creds["default_project"],
+                            meeting_title=str(meeting.title),
+                            action_items=summary.action_items,
+                        )
+                    except Exception as jira_err:
+                        logger.warning(f"Jira sync failed (non-fatal): {jira_err}")
+
+            # Step 6: Create Asana tasks for action items (if organizer has Asana connected)
+            if organizer and summary.action_items:
+                asana_creds = (organizer.integrations or {}).get("asana", {})
+                if asana_creds.get("access_token") and asana_creds.get("workspace_gid"):
+                    try:
+                        logger.info(f"Creating Asana tasks for meeting {meeting_id}")
+                        await _create_asana_tasks(
+                            access_token=asana_creds["access_token"],
+                            workspace_gid=asana_creds["workspace_gid"],
+                            project_gid=asana_creds.get("default_project_gid"),
+                            meeting_title=str(meeting.title),
+                            action_items=summary.action_items,
+                        )
+                    except Exception as asana_err:
+                        logger.warning(f"Asana sync failed (non-fatal): {asana_err}")
 
             logger.info(f"Meeting {meeting_id} processing completed successfully")
             
@@ -277,6 +352,120 @@ async def _send_reminders_async():
         logger.info(f"Sent {len(items)} action item reminders")
 
 
+@shared_task(name="dispatch_pre_meeting_briefs")
+def dispatch_pre_meeting_briefs():
+    """Scan for meetings starting in ~30 minutes and send pre-meeting briefs."""
+    import asyncio
+    asyncio.run(_dispatch_briefs_async())
+
+
+async def _dispatch_briefs_async():
+    from datetime import datetime, timedelta
+    from app.models.user import User
+    from app.services.pre_meeting_briefs import PreMeetingBriefService
+
+    brief_service = PreMeetingBriefService()
+    now = datetime.utcnow()
+    window_start = now + timedelta(minutes=25)
+    window_end = now + timedelta(minutes=35)
+
+    with SessionLocal() as db:
+        result = db.execute(
+            select(Meeting).where(
+                Meeting.scheduled_start >= window_start,
+                Meeting.scheduled_start <= window_end,
+                Meeting.status == "scheduled",
+            )
+        )
+        meetings = result.scalars().all()
+        logger.info(f"Dispatching pre-meeting briefs for {len(meetings)} meetings")
+
+        for meeting in meetings:
+            attendee_ids = meeting.attendee_ids or []
+            for uid in attendee_ids:
+                user = db.execute(select(User).where(User.id == uid)).scalar_one_or_none()
+                if user and user.is_active:
+                    try:
+                        await brief_service.generate_brief_for_user(db, meeting, user)
+                    except Exception as e:
+                        logger.error(f"Brief failed for user {uid} / meeting {meeting.id}: {e}")
+
+
+@shared_task(name="escalate_overdue_action_items")
+def escalate_overdue_action_items():
+    """Escalate action items that are overdue and haven't been escalated yet."""
+    import asyncio
+    asyncio.run(_escalate_overdue_async())
+
+
+async def _escalate_overdue_async():
+    from datetime import datetime
+
+    with SessionLocal() as db:
+        result = db.execute(
+            select(ActionItem).where(
+                ActionItem.status == "open",
+                ActionItem.due_date < datetime.utcnow(),
+                ActionItem.reminder_sent_overdue.is_(False),  # type: ignore[attr-defined]
+            )
+        )
+        items = result.scalars().all()
+        logger.info(f"Escalating {len(items)} overdue action items")
+
+        for item in items:
+            try:
+                await slack_service.send_action_reminder(
+                    user_id=str(item.owner_id),
+                    action_item={
+                        "id": str(item.id),
+                        "title": item.title,
+                        "description": item.description,
+                        "due_date": item.due_date.strftime("%Y-%m-%d") if item.due_date else "no date",
+                        "priority": item.priority,
+                        "overdue": True,
+                    },
+                )
+                item.reminder_sent_overdue = True  # type: ignore[attr-defined]
+                item.reminder_count += 1  # type: ignore[attr-defined]
+            except Exception as e:
+                logger.error(f"Failed to escalate action {item.id}: {e}")
+
+        db.commit()
+
+
+@shared_task(name="sync_calendars_all_users")
+def sync_calendars_all_users():
+    """Trigger calendar sync for all users with Google or Microsoft connected."""
+    import asyncio
+    asyncio.run(_sync_calendars_async())
+
+
+async def _sync_calendars_async():
+    from app.models.user import User
+
+    with SessionLocal() as db:
+        result = db.execute(select(User).where(User.is_active.is_(True)))
+        users = result.scalars().all()
+
+        synced = 0
+        for user in users:
+            integrations = user.integrations or {}
+            google = integrations.get("google", {})
+            microsoft = integrations.get("microsoft", {})
+
+            if google.get("access_token") or microsoft.get("access_token"):
+                try:
+                    from app.services.integrations.google_calendar import sync_user_calendar
+                    await sync_user_calendar(db, user)
+                    synced += 1
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Calendar sync failed for user {user.id}: {e}")
+
+        logger.info(f"Calendar sync completed for {synced} users")
+
+
 # ─── Slack helper ────────────────────────────────────────────────────────────
 
 async def _notify_slack(token: str, channel: str, meeting: "Meeting", action_count: int, decision_count: int):
@@ -307,6 +496,104 @@ async def _notify_slack(token: str, channel: str, meeting: "Meeting", action_cou
 
 
 # ─── Linear helper ───────────────────────────────────────────────────────────
+
+async def _create_jira_issues(
+    jira_url: str,
+    username: str,
+    api_token: str,
+    project_key: str,
+    meeting_title: str,
+    action_items: list,
+):
+    """Create Jira tasks for each extracted action item."""
+    import base64
+    import httpx
+
+    credentials = base64.b64encode(f"{username}:{api_token}".encode()).decode()
+    headers = {
+        "Authorization": f"Basic {credentials}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    jira_url = jira_url.rstrip("/")
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        for item in action_items[:10]:
+            payload = {
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": item.title,
+                    "description": {
+                        "type": "doc",
+                        "version": 1,
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": f"From meeting: {meeting_title}\n\n{item.description or ''}",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    "issuetype": {"name": "Task"},
+                }
+            }
+            try:
+                resp = await client.post(
+                    f"{jira_url}/rest/api/3/issue",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                logger.info(f"Created Jira issue: {data.get('key')} for action: {item.title}")
+            except Exception as e:
+                logger.warning(f"Failed to create Jira issue for '{item.title}': {e}")
+
+
+async def _create_asana_tasks(
+    access_token: str,
+    workspace_gid: str,
+    project_gid: Optional[str],
+    meeting_title: str,
+    action_items: list,
+):
+    """Create Asana tasks for each extracted action item."""
+    import httpx
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        for item in action_items[:10]:
+            payload: dict = {
+                "data": {
+                    "name": item.title,
+                    "notes": f"From meeting: {meeting_title}\n\n{item.description or ''}",
+                    "workspace": workspace_gid,
+                }
+            }
+            if project_gid:
+                payload["data"]["projects"] = [project_gid]
+
+            try:
+                resp = await client.post(
+                    "https://app.asana.com/api/1.0/tasks",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json().get("data", {})
+                logger.info(f"Created Asana task: {data.get('gid')} for action: {item.title}")
+            except Exception as e:
+                logger.warning(f"Failed to create Asana task for '{item.title}': {e}")
+
 
 async def _create_linear_issues(api_key: str, meeting_title: str, action_items: list):
     """Create Linear issues for each extracted action item."""

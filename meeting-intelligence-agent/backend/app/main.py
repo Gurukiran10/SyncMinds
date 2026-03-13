@@ -173,12 +173,34 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "database": "connected",
-        "redis": "connected",
-    }
+    """Health check endpoint — probes DB and Redis."""
+    checks: dict = {}
+    overall = "healthy"
+
+    # Check database
+    try:
+        from sqlalchemy import text
+        from app.core.database import engine
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        checks["database"] = "connected"
+    except Exception as e:
+        checks["database"] = f"error: {e}"
+        overall = "degraded"
+
+    # Check Redis
+    try:
+        from app.core.redis import redis_client
+        if redis_client:
+            redis_client.ping()
+            checks["redis"] = "connected"
+        else:
+            checks["redis"] = "not_configured"
+    except Exception as e:
+        checks["redis"] = f"error: {e}"
+        overall = "degraded"
+
+    return {"status": overall, **checks}
 
 
 @app.exception_handler(Exception)

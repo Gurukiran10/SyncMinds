@@ -13,11 +13,12 @@ from app.models.meeting import Meeting
 from app.models.mention import Mention
 from app.models.transcript import Transcript
 from app.models.user import User
+from app.core.config import settings
 from app.services.integrations.slack import slack_service
 
 logger = logging.getLogger(__name__)
 
-APP_BASE_URL = "http://localhost:3000"
+APP_BASE_URL = settings.APP_BASE_URL
 
 
 def _text(value: Any) -> str:

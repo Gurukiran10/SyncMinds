@@ -59,16 +59,13 @@ Base = declarative_base()
 
 
 def init_db() -> None:
-    """Initialize database"""
+    """Initialize database — schema is managed by Alembic migrations."""
     try:
-        # Import all models here to ensure they are registered
-        from app.models import user, meeting, transcript, action_item, mention
-        
-        # Create tables
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
+        # Import all models so they are registered on Base.metadata
+        from app.models import user, meeting, transcript, action_item, mention  # noqa: F401
+        logger.info("Database models loaded successfully")
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error(f"Error loading database models: {e}")
         raise
 
 

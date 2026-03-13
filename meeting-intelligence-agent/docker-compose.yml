@@ -57,6 +57,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # Celery Worker
@@ -102,6 +104,22 @@ services:
       - redis
     restart: unless-stopped
 
+  # Database migrations (runs once before backend starts)
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: meeting-intel-migrate
+    command: alembic upgrade head
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/meeting_intel
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   # Frontend
   frontend:
     build:
@@ -111,12 +129,31 @@ services:
     ports:
       - "3002:3000"
     environment:
-      - VITE_API_URL=http://localhost:8002
+      - VITE_API_BASE_URL=http://localhost:8002
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # Flower - Celery monitoring UI
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: meeting-intel-flower
+    command: celery -A app.core.celery:celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+      - celery-worker
     restart: unless-stopped
 
 volumes:

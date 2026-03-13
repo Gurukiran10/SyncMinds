@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime, timedelta, timezone
 import httpx
 import base64
@@ -147,6 +148,7 @@ def _save_integration(db: Session, user: User, key: str, data: Dict[str, Any]):
     integrations = dict(user.integrations or {})
     integrations[key] = data
     user.integrations = integrations
+    flag_modified(user, "integrations")
     db.commit()
     db.refresh(user)
 
@@ -253,6 +255,7 @@ def _remove_integration(db: Session, user: User, key: str):
     integrations = dict(user.integrations or {})
     integrations.pop(key, None)
     user.integrations = integrations
+    flag_modified(user, "integrations")
     db.commit()
 
 

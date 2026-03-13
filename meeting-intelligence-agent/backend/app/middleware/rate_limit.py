@@ -17,8 +17,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.requests = defaultdict(list)
     
     async def dispatch(self, request: Request, call_next):
-        # Get client IP
-        client_ip = request.client.host  # type: ignore
+        # Get client IP (request.client may be None in tests)
+        client_ip = request.client.host if request.client else "testclient"
         current_time = time.time()
         
         # Clean old requests
