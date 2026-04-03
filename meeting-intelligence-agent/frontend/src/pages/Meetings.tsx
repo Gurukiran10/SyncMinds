@@ -128,6 +128,54 @@ const Meetings: React.FC = () => {
 
       {/* Create form */}
       {showCreate && (
+        <form onSubmit={handleCreate} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input
+            required
+            placeholder="Title"
+            value={form.title}
+            onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          />
+          <select
+            value={form.platform}
+            onChange={(e) => setForm((prev) => ({ ...prev, platform: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="manual">Manual Upload</option>
+            <option value="zoom">Zoom</option>
+            <option value="google_meet">Google Meet</option>
+            <option value="microsoft_teams">Microsoft Teams</option>
+          </select>
+          <input
+            placeholder="Description"
+            value={form.description}
+            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg md:col-span-2"
+          />
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Start Time</label>
+            <input
+              required
+              type="datetime-local"
+              value={form.scheduled_start}
+              onChange={(e) => setForm((prev) => ({ ...prev, scheduled_start: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">End Time</label>
+            <input
+              required
+              type="datetime-local"
+              value={form.scheduled_end}
+              onChange={(e) => setForm((prev) => ({ ...prev, scheduled_end: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg w-full"
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border border-gray-300 rounded-lg">Cancel</button>
+            <button type="submit" disabled={isCreating} className="px-4 py-2 bg-primary-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed">
+              {isCreating ? 'Creating...' : 'Create'}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-900">New Meeting</h2>

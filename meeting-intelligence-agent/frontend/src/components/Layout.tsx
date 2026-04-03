@@ -10,6 +10,8 @@ import {
   Settings,
   LogOut,
   Plug,
+  User as UserIcon,
+  ChevronRight
   Brain,
   Vote,
   Menu,
@@ -17,6 +19,11 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { clearTokens } from '../lib/auth'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Separator } from '@/components/ui/separator'
 
 const navigation = [
   { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
@@ -42,6 +49,13 @@ const SidebarContent: React.FC<{ currentUser: any; onNavClick?: () => void }> = 
     .join('')
     .slice(0, 2)
     .toUpperCase()
+
+  const initials = (currentUser?.full_name || 'User')
+    .split(' ')
+    .map((p: string) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="flex flex-col h-full">
@@ -152,7 +166,7 @@ const Layout: React.FC = () => {
           <Outlet />
         </main>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }
 

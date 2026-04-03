@@ -3,6 +3,10 @@ import { Navigate } from 'react-router-dom'
 import { Brain, CheckCircle, Zap, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { isAuthenticated, setTokens } from '../lib/auth'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { AlertCircle, Lock, User } from 'lucide-react'
 
 const features = [
   { icon: Brain, text: 'AI-powered transcription & summaries' },
@@ -84,6 +88,38 @@ const Login: React.FC = () => {
             </div>
             <span className="text-xl font-bold text-gray-900">MeetingIntel</span>
           </div>
+          <CardTitle className="text-2xl font-bold tracking-tight">SyncMinds Login</CardTitle>
+          <CardDescription>
+            Enter your credentials to access your meeting intelligence
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
           <p className="text-sm text-gray-500 mb-8">Sign in to your workspace</p>

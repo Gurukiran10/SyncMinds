@@ -73,7 +73,7 @@ const Dashboard: React.FC = () => {
     .slice(0, 4)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -97,7 +97,7 @@ const Dashboard: React.FC = () => {
             ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Meetings */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
