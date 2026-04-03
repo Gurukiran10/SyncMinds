@@ -245,6 +245,118 @@ async def send_meeting_catchup(
     return {"sent": success, "meeting_id": str(meeting_id), "user_id": str(getattr(current_user, "id", ""))}
 
 
+# ── Shared Agenda endpoints ───────────────────────────────────────────────────
+
+class AgendaItemCreate(BaseModel):
+    text: str
+    owner: Optional[str] = None
+    time_box_minutes: Optional[int] = None
+
+
+@router.get("/{meeting_id}/agenda")
+async def get_agenda(
+    meeting_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get the agenda for a meeting."""
+    meeting = db.execute(select(Meeting).where(Meeting.id == meeting_id)).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    return {"meeting_id": str(meeting_id), "agenda": meeting.agenda or []}
+
+
+@router.put("/{meeting_id}/agenda")
+async def replace_agenda(
+    meeting_id: UUID,
+    items: List[str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Replace the entire agenda for a meeting."""
+    meeting = db.execute(select(Meeting).where(Meeting.id == meeting_id)).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    if meeting.organizer_id != current_user.id:  # type: ignore[comparison-overlap]
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only organizer can edit agenda")
+    meeting.agenda = items  # type: ignore[assignment]
+    db.commit()
+    return {"meeting_id": str(meeting_id), "agenda": items}
+
+
+@router.post("/{meeting_id}/agenda/items")
+async def add_agenda_item(
+    meeting_id: UUID,
+    item: AgendaItemCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Append a new item to the meeting agenda."""
+    meeting = db.execute(select(Meeting).where(Meeting.id == meeting_id)).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    agenda: List[Any] = list(meeting.agenda or [])
+    new_item = {"text": item.text}
+    if item.owner:
+        new_item["owner"] = item.owner
+    if item.time_box_minutes:
+        new_item["time_box_minutes"] = item.time_box_minutes  # type: ignore[assignment]
+
+    agenda.append(new_item)
+    meeting.agenda = agenda  # type: ignore[assignment]
+    db.commit()
+    return {"meeting_id": str(meeting_id), "agenda": agenda, "added": new_item}
+
+
+@router.delete("/{meeting_id}/agenda/items/{index}")
+async def remove_agenda_item(
+    meeting_id: UUID,
+    index: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove an agenda item by index."""
+    meeting = db.execute(select(Meeting).where(Meeting.id == meeting_id)).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    if meeting.organizer_id != current_user.id:  # type: ignore[comparison-overlap]
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only organizer can edit agenda")
+
+    agenda: List[Any] = list(meeting.agenda or [])
+    if index < 0 or index >= len(agenda):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Index {index} out of range")
+
+    removed = agenda.pop(index)
+    meeting.agenda = agenda  # type: ignore[assignment]
+    db.commit()
+    return {"meeting_id": str(meeting_id), "removed": removed, "agenda": agenda}
+
+
+# ── Attendee optimization endpoint ────────────────────────────────────────────
+
+@router.get("/{meeting_id}/attendee-optimization")
+async def get_attendee_optimization(
+    meeting_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Suggest attendee optimizations:
+    - Pre-meeting: who to add based on agenda topics
+    - Post-meeting: who spoke zero times and had zero action items
+    """
+    from app.services.attendee_optimizer import AttendeeOptimizer
+    optimizer = AttendeeOptimizer()
+
+    meeting = db.execute(select(Meeting).where(Meeting.id == meeting_id)).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    result = optimizer.analyze(db, meeting)
+    return result
+
+
 @router.get("/{meeting_id}/absentees", response_model=List[Dict[str, Any]])
 async def get_meeting_absentees(
     meeting_id: UUID,

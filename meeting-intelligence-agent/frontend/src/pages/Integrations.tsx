@@ -740,16 +740,14 @@ export default function Integrations() {
     .map(i => i.id)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="space-y-8 max-w-4xl">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-5">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
-          <p className="text-gray-500 mt-1">Connect your tools to supercharge meeting intelligence.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
+        <p className="mt-1 text-sm text-gray-500">Connect your tools to supercharge meeting intelligence.</p>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+      <div className="space-y-8">
 
         {/* Auto sync status */}
         <div className="bg-white rounded-xl border p-4">
@@ -766,7 +764,7 @@ export default function Integrations() {
             <button
               onClick={runAutoSyncNow}
               disabled={autoSyncRunning}
-              className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 font-medium transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 font-medium transition-colors disabled:opacity-50"
             >
               {autoSyncRunning ? 'Running...' : 'Run now'}
             </button>
@@ -838,7 +836,7 @@ export default function Integrations() {
             <button
               onClick={saveCapturePolicy}
               disabled={capturePolicySaving}
-              className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 font-medium transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 font-medium transition-colors disabled:opacity-50"
             >
               {capturePolicySaving ? 'Saving...' : 'Save policy'}
             </button>
@@ -913,7 +911,7 @@ export default function Integrations() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border p-4 text-center">
-            <div className="text-3xl font-bold text-indigo-600">{connected.length}</div>
+            <div className="text-3xl font-bold text-primary-600">{connected.length}</div>
             <div className="text-sm text-gray-500 mt-1">Connected</div>
           </div>
           <div className="bg-white rounded-xl border p-4 text-center">
@@ -927,8 +925,19 @@ export default function Integrations() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border-2 border-gray-200 p-5 animate-pulse">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-1/3" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </div>
+                  <div className="h-8 w-20 bg-gray-200 rounded-lg flex-shrink-0" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <>
@@ -1176,7 +1185,7 @@ function IntegrationCard({ integration, testResult, syncResult, syncing, history
               )}
               <button
                 onClick={onTest}
-                className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 font-medium transition-colors"
+                className="text-xs px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 font-medium transition-colors"
               >
                 Test
               </button>
@@ -1190,7 +1199,7 @@ function IntegrationCard({ integration, testResult, syncResult, syncing, history
           ) : (
             <button
               onClick={onConnect}
-              className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+              className="text-sm px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors"
             >
               Connect
             </button>

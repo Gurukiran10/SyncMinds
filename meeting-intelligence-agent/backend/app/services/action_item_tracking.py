@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 from app.models.action_item import ActionItem
 from app.models.meeting import Meeting
 from app.models.user import User
+from app.core.config import settings
 from app.services.integrations.linear import linear_service
 from app.services.integrations.slack import slack_service
 
 logger = logging.getLogger(__name__)
 
-APP_BASE_URL = "http://localhost:3000"
+APP_BASE_URL = settings.APP_BASE_URL
 
 
 def _text(value: Any) -> str:

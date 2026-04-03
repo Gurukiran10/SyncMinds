@@ -1,35 +1,37 @@
 import React from 'react'
 import { useQuery } from 'react-query'
-import { 
-  Calendar, 
-  Clock, 
-  TrendingUp, 
-  CheckCircle, 
-  AlertCircle, 
-  ChevronRight,
-  Plus,
-  Video,
-  FileText,
-  Users
-} from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Calendar, Clock, TrendingUp, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react'
 import { api } from '../lib/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { SkeletonCard, SkeletonRow } from '../components/ui/Skeleton'
+import EmptyState from '../components/ui/EmptyState'
+
+const statusColors: Record<string, string> = {
+  completed: 'bg-green-100 text-green-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  scheduled: 'bg-gray-100 text-gray-600',
+  failed: 'bg-red-100 text-red-700',
+}
+
+const priorityColors: Record<string, string> = {
+  urgent: 'text-red-500',
+  high: 'text-orange-500',
+  medium: 'text-yellow-500',
+  low: 'text-gray-400',
+}
 
 const Dashboard: React.FC = () => {
-  const { data: analytics } = useQuery('analytics', async () => {
+  const { data: analytics, isLoading: loadingAnalytics } = useQuery('analytics', async () => {
     const response = await api.get('/api/v1/analytics/dashboard')
     return response.data
   })
 
-  const { data: meetings } = useQuery('dashboard-meetings', async () => {
+  const { data: meetings, isLoading: loadingMeetings } = useQuery('dashboard-meetings', async () => {
     const response = await api.get('/api/v1/meetings/', { params: { limit: 5 } })
     return response.data
   })
 
-  const { data: actionItems } = useQuery('dashboard-actions', async () => {
+  const { data: actionItems, isLoading: loadingActions } = useQuery('dashboard-actions', async () => {
     const response = await api.get('/api/v1/action-items/', { params: { limit: 5 } })
     return response.data
   })
@@ -39,171 +41,154 @@ const Dashboard: React.FC = () => {
       name: 'Meetings This Week',
       value: analytics?.meeting_stats?.this_week_count ?? 0,
       icon: Calendar,
-      color: 'text-blue-600',
+      color: 'bg-blue-500',
       bg: 'bg-blue-50',
     },
     {
       name: 'Time Saved',
       value: `${analytics?.time_saved_hours ?? 0}h`,
       icon: Clock,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'bg-emerald-500',
+      bg: 'bg-emerald-50',
     },
     {
       name: 'Action Completion',
       value: `${analytics?.action_item_stats?.completion_rate ?? 0}%`,
       icon: CheckCircle,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
+      color: 'bg-violet-500',
+      bg: 'bg-violet-50',
     },
     {
       name: 'Decision Velocity',
       value: `${analytics?.decision_velocity ?? 0}/hr`,
       icon: TrendingUp,
-      color: 'text-orange-600',
+      color: 'bg-orange-500',
       bg: 'bg-orange-50',
     },
   ]
 
-  const recentMeetings = meetings || []
-  const urgentActions = (actionItems || []).filter((item: any) => item.status !== 'completed').slice(0, 3)
+  const recentMeetings: any[] = meetings || []
+  const urgentActions = ((actionItems || []) as any[])
+    .filter((item) => item.status !== 'completed')
+    .slice(0, 4)
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-1.5 text-slate-500 font-medium">
-            Overview of your meeting workspace and team activity.
-          </p>
-        </div>
-        <div className="flex space-x-3">
-           <Button variant="outline" className="border-slate-200">
-              <FileText className="w-4 h-4 mr-2" />
-              Reports
-           </Button>
-           <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200">
-              <Plus className="w-4 h-4 mr-2" />
-              New Meeting
-           </Button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">Here's what's happening with your meetings.</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.name} className="border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                 <div className={`${stat.bg} p-2.5 rounded-xl`}>
-                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                 </div>
-                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loadingAnalytics
+          ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          : stats.map((stat) => (
+              <div key={stat.name} className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.name}</p>
+                  <div className={`${stat.bg} rounded-lg p-2`}>
+                    <stat.icon className={`w-4 h-4 ${stat.color.replace('bg-', 'text-')}`} />
+                  </div>
+                </div>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-slate-500 uppercase tracking-tighter">{stat.name}</p>
-                <p className="text-3xl font-black text-slate-900 tracking-tight">{stat.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+            ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Meetings */}
-        <Card className="lg:col-span-2 border-slate-200/60 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <div className="space-y-1">
-              <CardTitle className="text-xl font-bold">Recent Meetings</CardTitle>
-              <CardDescription>Your latest collaborations and recordings.</CardDescription>
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">Recent Meetings</h2>
+            <Link to="/meetings" className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {loadingMeetings ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}
             </div>
-            <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:text-blue-700 hover:bg-blue-50">View all</Button>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="space-y-4">
-              {recentMeetings.length > 0 ? recentMeetings.map((meeting: any) => (
-                <div key={meeting.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 transition-all group cursor-pointer">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-slate-100 p-2.5 rounded-lg group-hover:bg-white transition-colors">
-                      <Video className="w-5 h-5 text-slate-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{meeting.title}</h3>
-                      <div className="flex items-center space-x-3 mt-1">
-                         <div className="flex items-center text-[11px] text-slate-500 font-medium">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {new Date(meeting.scheduled_start).toLocaleDateString()} at {new Date(meeting.scheduled_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                         </div>
-                         <span className="text-slate-300">•</span>
-                         <div className="flex items-center text-[11px] text-slate-500 font-medium">
-                            <Users className="w-3 h-3 mr-1" />
-                            {meeting.platform}
-                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                     <Badge variant={meeting.status === 'completed' ? 'secondary' : 'outline'} className="capitalize font-bold text-[10px] tracking-wide px-2.5">
-                        {meeting.status}
-                     </Badge>
-                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                  </div>
-                </div>
-              )) : (
-                <div className="py-12 text-center">
-                   <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Calendar className="w-6 h-6 text-slate-300" />
-                   </div>
-                   <p className="text-sm text-slate-400 font-medium">No recent meetings found.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Urgent Action Items */}
-        <Card className="border-slate-200/60 shadow-sm flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Urgent Actions</CardTitle>
-            <CardDescription>Items needing immediate attention.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1">
-            <div className="space-y-4">
-              {urgentActions.length > 0 ? urgentActions.map((action: any, idx: number) => (
-                <div key={idx} className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-start space-x-3">
-                  <div className={cn(
-                     "mt-1 p-1 rounded-md",
-                     action.priority === 'high' ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"
-                  )}>
-                     <AlertCircle className="w-4 h-4" />
+          ) : recentMeetings.length === 0 ? (
+            <EmptyState
+              icon={Calendar}
+              title="No meetings yet"
+              description="Create your first meeting to get started"
+              action={
+                <Link to="/meetings" className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                  Go to Meetings →
+                </Link>
+              }
+            />
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {recentMeetings.map((meeting: any) => (
+                <Link
+                  key={meeting.id}
+                  to={`/meetings/${meeting.id}`}
+                  className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-primary-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{action.title}</p>
-                    <div className="mt-2 flex items-center justify-between">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{action.priority} Priority</span>
-                       <span className="text-[10px] font-bold text-red-500">
-                          Due {action.due_date ? new Date(action.due_date).toLocaleDateString() : 'TBD'}
-                       </span>
-                    </div>
+                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-primary-700 transition-colors">
+                      {meeting.title}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(meeting.scheduled_start).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                      })} · {meeting.platform}
+                    </p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${statusColors[meeting.status] || statusColors.scheduled}`}>
+                    {meeting.status?.replace('_', ' ')}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Urgent Action Items */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">Urgent Actions</h2>
+            <Link to="/action-items" className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {loadingActions ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}
+            </div>
+          ) : urgentActions.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle}
+              title="All caught up!"
+              description="No pending action items right now"
+            />
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {urgentActions.map((action: any) => (
+                <div key={action.id} className="flex items-start gap-3 px-5 py-3.5">
+                  <AlertCircle
+                    className={`w-4 h-4 mt-0.5 flex-shrink-0 ${priorityColors[action.priority] || priorityColors.medium}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 leading-tight">{action.title}</p>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {action.due_date
+                        ? `Due ${new Date(action.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : 'No due date'}
+                    </p>
                   </div>
                 </div>
-              )) : (
-                <div className="py-12 text-center">
-                   <div className="bg-green-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle className="w-6 h-6 text-green-400" />
-                   </div>
-                   <p className="text-sm text-slate-400 font-medium">Inbox clear! Great job.</p>
-                </div>
-              )}
+              ))}
             </div>
-          </CardContent>
-          <div className="p-6 pt-0 mt-auto">
-             <Button variant="outline" className="w-full border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors">
-                View All Actions
-             </Button>
-          </div>
-        </Card>
+          )}
+        </div>
       </div>
     </div>
   )

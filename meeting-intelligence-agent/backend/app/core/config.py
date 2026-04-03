@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Meeting Intelligence Agent"
     APP_ENV: str = "development"
     DEBUG: bool = True
+    APP_BASE_URL: str = "http://localhost:3000"
     SECRET_KEY: str = "syncminds-dev-secret-change-in-production"
     API_V1_PREFIX: str = "/api/v1"
     

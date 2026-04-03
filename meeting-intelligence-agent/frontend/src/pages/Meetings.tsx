@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from 'react-query'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2, Calendar, ChevronRight, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { SkeletonList } from '../components/ui/Skeleton'
+import EmptyState from '../components/ui/EmptyState'
+
+const statusColors: Record<string, string> = {
+  completed: 'bg-green-100 text-green-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  scheduled: 'bg-gray-100 text-gray-600',
+  failed: 'bg-red-100 text-red-700',
+}
 
 const Meetings: React.FC = () => {
   const [search, setSearch] = useState('')
@@ -37,27 +46,23 @@ const Meetings: React.FC = () => {
 
   useEffect(() => {
     if (!banner) return
-    const timeoutId = window.setTimeout(() => setBanner(null), 4000)
-    return () => window.clearTimeout(timeoutId)
+    const id = window.setTimeout(() => setBanner(null), 4000)
+    return () => window.clearTimeout(id)
   }, [banner])
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
     setCreateError('')
-
     const start = new Date(form.scheduled_start)
     const end = new Date(form.scheduled_end)
-
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setCreateError('Please enter valid start and end date/time values.')
       return
     }
-
     if (end <= start) {
       setCreateError('End time must be after start time.')
       return
     }
-
     try {
       setIsCreating(true)
       await api.post('/api/v1/meetings/', {
@@ -69,33 +74,24 @@ const Meetings: React.FC = () => {
         attendee_ids: [],
         tags: [],
       }, { timeout: 15000 })
-
       setShowCreate(false)
-      setForm({
-        title: '',
-        description: '',
-        meeting_type: 'internal',
-        platform: 'manual',
-        scheduled_start: '',
-        scheduled_end: '',
-      })
+      setForm({ title: '', description: '', meeting_type: 'internal', platform: 'manual', scheduled_start: '', scheduled_end: '' })
       setBanner({ type: 'success', message: 'Meeting created successfully.' })
       refetch()
     } catch (err: any) {
-      if (err?.code === 'ECONNABORTED') {
-        setCreateError('Create request timed out. Please try again.')
-        setBanner({ type: 'error', message: 'Create request timed out. Please retry.' })
-      } else {
-        const message = err?.response?.data?.detail || 'Failed to create meeting. Please try again.'
-        setCreateError(message)
-        setBanner({ type: 'error', message })
-      }
+      const message = err?.code === 'ECONNABORTED'
+        ? 'Request timed out. Please try again.'
+        : err?.response?.data?.detail || 'Failed to create meeting.'
+      setCreateError(message)
+      setBanner({ type: 'error', message })
     } finally {
       setIsCreating(false)
     }
   }
 
-  const handleDelete = async (meetingId: string) => {
+  const handleDelete = async (meetingId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     await api.delete(`/api/v1/meetings/${meetingId}`)
     refetch()
   }
@@ -103,32 +99,34 @@ const Meetings: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Meetings</h1>
-          <p className="mt-2 text-gray-600">View and manage all your meeting recordings.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Meetings</h1>
+          <p className="mt-1 text-sm text-gray-500">View and manage your meeting recordings.</p>
         </div>
         <button
-          onClick={() => setShowCreate((value) => !value)}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          onClick={() => setShowCreate((v) => !v)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors flex-shrink-0"
         >
-          <Plus className="w-5 h-5 mr-2" />
-          New Meeting
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">New Meeting</span>
+          <span className="sm:hidden">New</span>
         </button>
       </div>
 
+      {/* Banner */}
       {banner && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            banner.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
-        >
-          {banner.message}
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${
+          banner.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          <span>{banner.message}</span>
+          <button onClick={() => setBanner(null)} className="ml-3 opacity-60 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
+      {/* Create form */}
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
@@ -178,77 +176,151 @@ const Meetings: React.FC = () => {
             <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border border-gray-300 rounded-lg">Cancel</button>
             <button type="submit" disabled={isCreating} className="px-4 py-2 bg-primary-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed">
               {isCreating ? 'Creating...' : 'Create'}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">New Meeting</h2>
+            <button onClick={() => setShowCreate(false)} className="p-1 rounded text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
             </button>
           </div>
-          {createError && (
-            <div className="md:col-span-2 text-sm text-red-600">{createError}</div>
-          )}
-        </form>
+          <form onSubmit={handleCreate} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Title *</label>
+              <input
+                required
+                placeholder="e.g. Q2 Planning Sync"
+                value={form.title}
+                onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Description</label>
+              <input
+                placeholder="Optional description"
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Start *</label>
+              <input
+                required
+                type="datetime-local"
+                value={form.scheduled_start}
+                onChange={(e) => setForm((prev) => ({ ...prev, scheduled_start: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">End *</label>
+              <input
+                required
+                type="datetime-local"
+                value={form.scheduled_end}
+                onChange={(e) => setForm((prev) => ({ ...prev, scheduled_end: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            {createError && (
+              <p className="sm:col-span-2 text-sm text-red-600">{createError}</p>
+            )}
+            <div className="sm:col-span-2 flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={isCreating} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                {isCreating ? 'Creating...' : 'Create Meeting'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      {/* Search and Filters */}
-      <div className="flex items-center space-x-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search meetings..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-        </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search meetings..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Meetings List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading meetings...</div>
+          <SkeletonList rows={5} />
         ) : filteredMeetings && filteredMeetings.length > 0 ? (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-50">
             {filteredMeetings.map((meeting: any) => (
-              <div
+              <Link
                 key={meeting.id}
-                className="p-6 hover:bg-gray-50 transition-colors"
+                to={`/meetings/${meeting.id}`}
+                className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <Link to={`/meetings/${meeting.id}`} className="text-lg font-medium text-gray-900 hover:text-primary-700">
-                      {meeting.title}
-                    </Link>
-                    <p className="mt-1 text-sm text-gray-500">{meeting.description}</p>
-                    <div className="mt-3 flex items-center space-x-4 text-sm text-gray-500">
-                      <span>{new Date(meeting.scheduled_start).toLocaleDateString()}</span>
-                      <span>•</span>
-                      <span>{meeting.platform}</span>
-                      <span>•</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        meeting.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        meeting.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {meeting.status}
-                      </span>
-                    </div>
+                <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-primary-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 group-hover:text-primary-700 transition-colors truncate">
+                    {meeting.title}
+                  </p>
+                  {meeting.description && (
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{meeting.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-xs text-gray-400">
+                      {new Date(meeting.scheduled_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span className="text-gray-200">·</span>
+                    <span className="text-xs text-gray-400 capitalize">{meeting.platform}</span>
                   </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className={`hidden sm:inline text-xs px-2 py-1 rounded-full font-medium ${statusColors[meeting.status] || statusColors.scheduled}`}>
+                    {meeting.status?.replace('_', ' ')}
+                  </span>
                   <button
-                    onClick={() => handleDelete(meeting.id)}
-                    className="ml-4 text-gray-400 hover:text-red-600"
+                    onClick={(e) => handleDelete(meeting.id, e)}
+                    className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete meeting"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
+                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
-          <div className="p-12 text-center">
-            <p className="text-gray-500">No meetings found.</p>
-            <button className="mt-4 text-primary-600 hover:text-primary-700 font-medium">
-              Upload your first meeting recording
-            </button>
-          </div>
+          <EmptyState
+            icon={Calendar}
+            title={search ? 'No meetings match your search' : 'No meetings yet'}
+            description={search ? 'Try different keywords or clear the search' : 'Create your first meeting to start tracking and analyzing your discussions'}
+            action={
+              search ? (
+                <button onClick={() => setSearch('')} className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                  Clear search
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Create Meeting
+                </button>
+              )
+            }
+          />
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import {
@@ -12,6 +12,10 @@ import {
   Plug,
   User as UserIcon,
   ChevronRight
+  Brain,
+  Vote,
+  Menu,
+  X,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { clearTokens } from '../lib/auth'
@@ -21,26 +25,30 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 
-const Layout: React.FC = () => {
-  const { data: currentUser } = useQuery('current-user', async () => {
-    const response = await api.get('/api/v1/auth/me')
-    return response.data
-  })
+const navigation = [
+  { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
+  { name: 'Meetings', to: '/meetings', icon: Calendar },
+  { name: 'Action Items', to: '/action-items', icon: CheckSquare },
+  { name: 'Mentions', to: '/mentions', icon: Bell },
+  { name: 'Analytics', to: '/analytics', icon: BarChart3 },
+  { name: 'Decisions', to: '/decisions', icon: Vote },
+  { name: 'Knowledge', to: '/knowledge', icon: Brain },
+  { name: 'Integrations', to: '/integrations', icon: Plug },
+  { name: 'Settings', to: '/settings', icon: Settings },
+]
 
+const SidebarContent: React.FC<{ currentUser: any; onNavClick?: () => void }> = ({ currentUser, onNavClick }) => {
   const handleLogout = () => {
     clearTokens()
     window.location.href = '/login'
   }
 
-  const navigation = [
-    { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
-    { name: 'Meetings', to: '/meetings', icon: Calendar },
-    { name: 'Action Items', to: '/action-items', icon: CheckSquare },
-    { name: 'Mentions', to: '/mentions', icon: Bell },
-    { name: 'Analytics', to: '/analytics', icon: BarChart3 },
-    { name: 'Integrations', to: '/integrations', icon: Plug },
-    { name: 'Settings', to: '/settings', icon: Settings },
-  ]
+  const initials = (currentUser?.full_name || 'User')
+    .split(' ')
+    .map((p: string) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
   const initials = (currentUser?.full_name || 'User')
     .split(' ')
@@ -50,114 +58,112 @@ const Layout: React.FC = () => {
     .toUpperCase();
 
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-slate-50/50">
-        {/* Sidebar */}
-        <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200/60 shadow-sm z-30">
-          <div className="flex flex-col h-full">
-            {/* Logo */}
-            <div className="px-6 h-16 flex items-center border-b border-slate-100">
-              <div className="bg-blue-600 p-1.5 rounded-lg mr-3 shadow-md shadow-blue-200">
-                <LayoutDashboard className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 ring-offset-background">
-                SyncMinds
-              </h1>
-            </div>
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="px-5 py-5 border-b border-gray-100">
+        <h1 className="text-lg font-bold text-primary-600">MeetingIntel</h1>
+        <p className="text-xs text-gray-400 mt-0.5">AI Meeting Assistant</p>
+      </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-              <div className="px-3 mb-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Main Menu
-              </div>
-              {navigation.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    cn(
-                      "group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
-                      isActive
-                        ? "bg-blue-50 text-blue-700 shadow-sm shadow-blue-100/50"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    )
-                  }
-                >
-                  <div className="flex items-center">
-                    <item.icon className={cn(
-                      "w-5 h-5 mr-3 transition-colors",
-                      "group-hover:text-blue-600"
-                    )} />
-                    {item.name}
-                  </div>
-                  <ChevronRight className={cn(
-                    "w-3.5 h-3.5 opacity-0 transition-opacity",
-                    "group-hover:opacity-100"
-                  )} />
-                </NavLink>
-              ))}
-            </nav>
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {navigation.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            onClick={onNavClick}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                isActive
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`
+            }
+          >
+            <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+            {item.name}
+          </NavLink>
+        ))}
+      </nav>
 
-            {/* Footer / User section */}
-            <div className="p-4 mt-auto">
-              <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm">
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-slate-200">
-                    <AvatarImage src={currentUser?.avatar_url} />
-                    <AvatarFallback className="bg-blue-600 text-white text-xs">{initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-3 flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-900 truncate">
-                      {currentUser?.full_name || 'System Admin'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 font-medium truncate uppercase tracking-tighter">
-                      {currentUser?.role || 'Administrator'}
-                    </p>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={handleLogout}>
-                        <LogOut className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>Logout</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            </div>
+      {/* User section */}
+      <div className="px-3 py-4 border-t border-gray-100">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-primary-600 text-xs font-semibold">{initials}</span>
           </div>
-        </aside>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-700 truncate">{currentUser?.full_name || 'User'}</p>
+            <p className="text-xs text-gray-400 truncate">{currentUser?.role || 'Member'}</p>
+          </div>
+          <button
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            onClick={handleLogout}
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-        {/* Header (Top bar for search/notifications) */}
-        <header className="fixed top-0 left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60 z-20 px-8 flex items-center justify-between">
-          <div className="flex items-center text-sm text-slate-500 font-medium">
-             <span className="text-slate-400">Workspace</span>
-             <ChevronRight className="w-4 h-4 mx-2" />
-             <span className="text-slate-900">General</span>
-          </div>
-          <div className="flex items-center space-x-3">
-             <Button variant="outline" size="sm" className="hidden md:flex items-center text-slate-500 border-slate-200">
-                <Plug className="w-4 h-4 mr-2" />
-                Connect Integrations
-             </Button>
-             <Separator orientation="vertical" className="h-6 mx-1 hidden md:block" />
-             <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-blue-600 transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-             </Button>
-             <Button variant="ghost" size="icon" className="text-slate-500 hover:text-blue-600 transition-colors">
-                <Settings className="w-5 h-5" />
-             </Button>
-          </div>
-        </header>
+const Layout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-        {/* Main content */}
-        <main className="pl-64 pt-16 min-h-screen">
-          <div className="py-8 px-10 max-w-7xl mx-auto">
-            <Outlet />
-          </div>
+  const { data: currentUser } = useQuery('current-user', async () => {
+    const response = await api.get('/api/v1/auth/me')
+    return response.data
+  })
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Desktop sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-60 lg:flex lg:flex-col bg-white border-r border-gray-100 shadow-sm z-20">
+        <SidebarContent currentUser={currentUser} />
+      </div>
+
+      {/* Mobile: overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile: sidebar drawer */}
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-200 ease-out lg:hidden ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="absolute top-3 right-3">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <SidebarContent currentUser={currentUser} onNavClick={() => setSidebarOpen(false)} />
+      </div>
+
+      {/* Mobile top bar */}
+      <div className="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <span className="font-bold text-primary-600 text-lg">MeetingIntel</span>
+      </div>
+
+      {/* Main content */}
+      <div className="lg:pl-60">
+        <main className="py-6 px-4 sm:px-6 lg:py-8 lg:px-8 page-fade">
+          <Outlet />
         </main>
       </div>
     </TooltipProvider>
