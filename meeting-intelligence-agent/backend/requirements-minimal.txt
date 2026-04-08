@@ -42,8 +42,13 @@ asana==4.0.7
 O365==2.0.27
 
 # AI Clients (API-only, no local model)
-openai==1.10.0
+openai==1.14.0
 anthropic==0.8.1
 tiktoken==0.5.2
 langchain==0.1.4
 langchain-openai==0.0.2
+groq==0.4.0
+
+# HTTP Client
+httpx==0.26.0
+aiohttp==3.9.1

@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan events"""
     auto_sync_task: Optional[asyncio.Task] = None
     retention_task: Optional[asyncio.Task] = None
+    pre_meeting_task: Optional[asyncio.Task] = None
 
     async def _auto_sync_loop():
         from app.api.v1.endpoints.integrations import run_integration_auto_sync_for_all_users
@@ -71,6 +72,48 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
                 logger.error(f"Retention enforcement failed: {exc}", exc_info=True)
             await asyncio.sleep(interval_seconds)
 
+    async def _pre_meeting_brief_loop():
+        """Check every 5 minutes for meetings starting in ~30 minutes and send briefs"""
+        from datetime import datetime, timedelta
+        from sqlalchemy import select, and_
+        from app.core.database import SessionLocal
+        from app.models.meeting import Meeting
+        from app.models.user import User
+        from app.services.pre_meeting_briefs import pre_meeting_brief_service
+
+        while True:
+            try:
+                now = datetime.utcnow()
+                window_start = now + timedelta(minutes=25)
+                window_end = now + timedelta(minutes=35)
+
+                with SessionLocal() as db:
+                    upcoming = db.execute(
+                        select(Meeting).where(
+                            and_(
+                                Meeting.scheduled_start >= window_start,
+                                Meeting.scheduled_start <= window_end,
+                                Meeting.deleted_at.is_(None),
+                            )
+                        )
+                    ).scalars().all()
+
+                    for meeting in upcoming:
+                        organizer = db.execute(
+                            select(User).where(User.id == meeting.organizer_id)
+                        ).scalar_one_or_none()
+                        if not organizer:
+                            continue
+                        try:
+                            brief = await pre_meeting_brief_service.generate_brief_for_user(db, meeting, organizer)
+                            await pre_meeting_brief_service.send_brief_to_user(db, meeting, organizer, brief)
+                            logger.info(f"Pre-meeting brief sent for meeting {meeting.id}")
+                        except Exception as exc:
+                            logger.warning(f"Pre-meeting brief failed for {meeting.id}: {exc}")
+            except Exception as exc:
+                logger.error(f"Pre-meeting brief loop error: {exc}", exc_info=True)
+            await asyncio.sleep(300)  # check every 5 minutes
+
     # Startup
     logger.info("Starting Meeting Intelligence Agent...")
     init_db()
@@ -93,6 +136,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             "Retention enforcement scheduler enabled "
             f"(interval={settings.RETENTION_ENFORCEMENT_INTERVAL_MINUTES} minutes)"
         )
+
+    if settings.ENABLE_PRE_MEETING_BRIEFS:
+        pre_meeting_task = asyncio.create_task(_pre_meeting_brief_loop())
+        logger.info("Pre-meeting brief scheduler enabled (checks every 5 minutes)")
 
     logger.info("Application started successfully")
     
@@ -117,6 +164,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         retention_task.cancel()
         try:
             await retention_task
+        except asyncio.CancelledError:
+            pass
+
+    if pre_meeting_task:
+        pre_meeting_task.cancel()
+        try:
+            await pre_meeting_task
         except asyncio.CancelledError:
             pass
 
