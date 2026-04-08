@@ -11,7 +11,7 @@ import {
   LogOut,
   Plug,
   User as UserIcon,
-  ChevronRight
+  ChevronRight,
   Brain,
   Vote,
   Menu,
@@ -49,13 +49,6 @@ const SidebarContent: React.FC<{ currentUser: any; onNavClick?: () => void }> = 
     .join('')
     .slice(0, 2)
     .toUpperCase()
-
-  const initials = (currentUser?.full_name || 'User')
-    .split(' ')
-    .map((p: string) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <div className="flex flex-col h-full">
@@ -166,7 +159,7 @@ const Layout: React.FC = () => {
           <Outlet />
         </main>
       </div>
-    </TooltipProvider>
+    </div>
   )
 }
 

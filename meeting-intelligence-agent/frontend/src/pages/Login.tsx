@@ -3,10 +3,6 @@ import { Navigate } from 'react-router-dom'
 import { Brain, CheckCircle, Zap, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { isAuthenticated, setTokens } from '../lib/auth'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, Lock, User } from 'lucide-react'
 
 const features = [
   { icon: Brain, text: 'AI-powered transcription & summaries' },
@@ -29,16 +25,13 @@ const Login: React.FC = () => {
     event.preventDefault()
     setLoading(true)
     setError('')
-
     try {
       const params = new URLSearchParams()
       params.append('username', username)
       params.append('password', password)
-
       const response = await api.post('/api/v1/auth/login', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       })
-
       setTokens(response.data.access_token, response.data.refresh_token)
       window.location.href = '/dashboard'
     } catch (e: any) {
@@ -57,7 +50,7 @@ const Login: React.FC = () => {
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <Brain className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">MeetingIntel</span>
+            <span className="text-2xl font-bold text-white">SyncMinds</span>
           </div>
           <h2 className="text-4xl font-bold text-white leading-tight mb-4">
             Turn every meeting into<br />actionable intelligence
@@ -81,45 +74,12 @@ const Login: React.FC = () => {
       {/* Right panel — form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
-          {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">MeetingIntel</span>
+            <span className="text-xl font-bold text-gray-900">SyncMinds</span>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">SyncMinds Login</CardTitle>
-          <CardDescription>
-            Enter your credentials to access your meeting intelligence
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
           <p className="text-sm text-gray-500 mb-8">Sign in to your workspace</p>
@@ -136,7 +96,6 @@ const Login: React.FC = () => {
                 autoFocus
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
               <input
@@ -150,25 +109,17 @@ const Login: React.FC = () => {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 px-3.5 py-3 bg-red-50 border border-red-200 rounded-lg">
-                <span className="text-red-600 text-sm">{error}</span>
+              <div className="px-3.5 py-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {error}
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              className="w-full py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : 'Sign in'}
+              {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
 
