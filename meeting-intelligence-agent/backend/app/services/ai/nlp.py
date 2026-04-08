@@ -333,7 +333,11 @@ class NLPService:
                     response_format={"type": "json_object"},
                     temperature=temperature,
                 )
-                return json.loads(response.choices[0].message.content or "{}")  # type: ignore
+                raw = response.choices[0].message.content or "{}"
+                logger.info(f"Groq raw response (first 500 chars): {raw[:500]}")
+                parsed = json.loads(raw)
+                logger.info(f"Groq parsed keys: {list(parsed.keys())}")
+                return parsed
             except Exception as exc:
                 logger.warning(f"Groq generation failed: {exc}")
 
@@ -407,7 +411,18 @@ Return a JSON object with a top-level 'mentions' array.
         mentions = []
         for mention_dict in mentions_data.get("mentions", []):
             try:
-                mentions.append(MentionDetection(**mention_dict))
+                # Normalize keys from different Groq response formats
+                normalized = {
+                    "user_name": mention_dict.get("user_name") or mention_dict.get("name") or mention_dict.get("user") or "",
+                    "mention_type": mention_dict.get("mention_type") or mention_dict.get("type") or mention_dict.get("mention_type_label") or "direct",
+                    "text": mention_dict.get("text") or mention_dict.get("mentioned_text") or mention_dict.get("quote") or "",
+                    "context": mention_dict.get("context") or mention_dict.get("surrounding_context") or mention_dict.get("context_text") or "",
+                    "relevance_score": float(mention_dict.get("relevance_score") or mention_dict.get("relevance") or 70),
+                    "is_action_item": bool(mention_dict.get("is_action_item") or mention_dict.get("action_item") or False),
+                    "is_question": bool(mention_dict.get("is_question") or mention_dict.get("question") or False),
+                }
+                if normalized["user_name"] and normalized["text"]:
+                    mentions.append(MentionDetection(**normalized))
             except Exception as e:
                 logger.warning(f"Failed to parse mention: {e}")
 
@@ -565,14 +580,45 @@ Return a JSON object.
             )
         
         # Parse into structured format
+        def _parse_action_item(a: dict) -> Optional[ActionItem]:
+            try:
+                return ActionItem(
+                    title=a.get("title") or a.get("task") or a.get("action") or a.get("description") or "",
+                    description=a.get("description") or a.get("task") or a.get("context") or "",
+                    owner=a.get("owner") or a.get("assignee") or a.get("assigned_to") or a.get("responsible"),
+                    due_date=a.get("due_date") or a.get("deadline") or a.get("due"),
+                    priority=a.get("priority") or "medium",
+                    confidence=float(a.get("confidence") or 0.8),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to parse action item {a}: {e}")
+                return None
+
+        def _parse_decision(d: dict) -> Optional[Decision]:
+            try:
+                return Decision(
+                    decision=d.get("decision") or d.get("title") or d.get("description") or "",
+                    reasoning=d.get("reasoning") or d.get("rationale") or d.get("reason") or "",
+                    alternatives=d.get("alternatives") or d.get("alternatives_considered") or [],
+                    decision_maker=d.get("decision_maker") or d.get("decided_by") or d.get("owner"),
+                    is_reversible=bool(d.get("is_reversible", True)),
+                    impact_level=d.get("impact_level") or d.get("impact") or "medium",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to parse decision {d}: {e}")
+                return None
+
+        raw_actions = summary_data.get("action_items") or summary_data.get("actionItems") or summary_data.get("tasks") or []
+        raw_decisions = summary_data.get("decisions") or summary_data.get("key_decisions") or []
+
         summary = MeetingSummary(
-            executive_summary=summary_data.get("executive_summary", ""),
-            key_points=summary_data.get("key_points", []),
-            decisions=[Decision(**d) for d in summary_data.get("decisions", [])],
-            action_items=[ActionItem(**a) for a in summary_data.get("action_items", [])],
-            discussion_topics=summary_data.get("discussion_topics", []),
-            sentiment=summary_data.get("sentiment", "neutral"),
-            sentiment_score=summary_data.get("sentiment_score", 0.0),
+            executive_summary=summary_data.get("executive_summary") or summary_data.get("summary") or summary_data.get("overview") or "",
+            key_points=summary_data.get("key_points") or summary_data.get("keyPoints") or summary_data.get("main_points") or [],
+            decisions=[d for d in (_parse_decision(d) for d in raw_decisions if isinstance(d, dict)) if d],
+            action_items=[a for a in (_parse_action_item(a) for a in raw_actions if isinstance(a, dict)) if a],
+            discussion_topics=summary_data.get("discussion_topics") or summary_data.get("topics") or summary_data.get("discussionTopics") or [],
+            sentiment=summary_data.get("sentiment") or summary_data.get("overall_sentiment") or "neutral",
+            sentiment_score=float(summary_data.get("sentiment_score") or summary_data.get("sentimentScore") or 0.0),
         )
         
         logger.info("Summary generated successfully")

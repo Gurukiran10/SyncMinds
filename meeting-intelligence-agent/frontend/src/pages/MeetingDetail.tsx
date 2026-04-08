@@ -44,6 +44,9 @@ const MeetingDetail: React.FC = () => {
           t === 'processing' || a === 'processing'
         return isProcessing ? 2500 : false
       },
+      staleTime: 0,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
     },
   )
 
