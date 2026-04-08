@@ -73,17 +73,14 @@ const Meetings: React.FC = () => {
         scheduled_end: end.toISOString(),
         attendee_ids: [],
         tags: [],
-      }, { timeout: 15000 })
+      })
       setShowCreate(false)
       setForm({ title: '', description: '', meeting_type: 'internal', platform: 'manual', scheduled_start: '', scheduled_end: '' })
       setBanner({ type: 'success', message: 'Meeting created successfully.' })
       refetch()
     } catch (err: any) {
-      const message = err?.code === 'ECONNABORTED'
-        ? 'Request timed out. Please try again.'
-        : err?.response?.data?.detail || 'Failed to create meeting.'
+      const message = err?.response?.data?.detail || 'Failed to create meeting.'
       setCreateError(message)
-      setBanner({ type: 'error', message })
     } finally {
       setIsCreating(false)
     }
@@ -106,11 +103,10 @@ const Meetings: React.FC = () => {
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors flex-shrink-0"
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Meeting</span>
-          <span className="sm:hidden">New</span>
+          New Meeting
         </button>
       </div>
 
@@ -120,62 +116,12 @@ const Meetings: React.FC = () => {
           banner.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
         }`}>
           <span>{banner.message}</span>
-          <button onClick={() => setBanner(null)} className="ml-3 opacity-60 hover:opacity-100">
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={() => setBanner(null)}><X className="w-4 h-4" /></button>
         </div>
       )}
 
       {/* Create form */}
       {showCreate && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            required
-            placeholder="Title"
-            value={form.title}
-            onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-lg"
-          />
-          <select
-            value={form.platform}
-            onChange={(e) => setForm((prev) => ({ ...prev, platform: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-lg"
-          >
-            <option value="manual">Manual Upload</option>
-            <option value="zoom">Zoom</option>
-            <option value="google_meet">Google Meet</option>
-            <option value="microsoft_teams">Microsoft Teams</option>
-          </select>
-          <input
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-lg md:col-span-2"
-          />
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Start Time</label>
-            <input
-              required
-              type="datetime-local"
-              value={form.scheduled_start}
-              onChange={(e) => setForm((prev) => ({ ...prev, scheduled_start: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-lg w-full"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">End Time</label>
-            <input
-              required
-              type="datetime-local"
-              value={form.scheduled_end}
-              onChange={(e) => setForm((prev) => ({ ...prev, scheduled_end: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-lg w-full"
-            />
-          </div>
-          <div className="md:col-span-2 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border border-gray-300 rounded-lg">Cancel</button>
-            <button type="submit" disabled={isCreating} className="px-4 py-2 bg-primary-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed">
-              {isCreating ? 'Creating...' : 'Create'}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-900">New Meeting</h2>
@@ -204,6 +150,19 @@ const Meetings: React.FC = () => {
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Platform</label>
+              <select
+                value={form.platform}
+                onChange={(e) => setForm((prev) => ({ ...prev, platform: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              >
+                <option value="manual">Manual Upload</option>
+                <option value="zoom">Zoom</option>
+                <option value="google_meet">Google Meet</option>
+                <option value="microsoft_teams">Microsoft Teams</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Start *</label>
               <input
                 required
@@ -230,7 +189,7 @@ const Meetings: React.FC = () => {
               <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button type="submit" disabled={isCreating} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed">
+              <button type="submit" disabled={isCreating} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-60">
                 {isCreating ? 'Creating...' : 'Create Meeting'}
               </button>
             </div>
@@ -271,13 +230,10 @@ const Meetings: React.FC = () => {
                   <Calendar className="w-5 h-5 text-primary-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 group-hover:text-primary-700 transition-colors truncate">
+                  <p className="text-sm font-medium text-gray-900 group-hover:text-primary-700 truncate">
                     {meeting.title}
                   </p>
-                  {meeting.description && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{meeting.description}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-gray-400">
                       {new Date(meeting.scheduled_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
@@ -286,17 +242,16 @@ const Meetings: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className={`hidden sm:inline text-xs px-2 py-1 rounded-full font-medium ${statusColors[meeting.status] || statusColors.scheduled}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[meeting.status] || statusColors.scheduled}`}>
                     {meeting.status?.replace('_', ' ')}
                   </span>
                   <button
                     onClick={(e) => handleDelete(meeting.id, e)}
-                    className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Delete meeting"
+                    className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-gray-300" />
                 </div>
               </Link>
             ))}
@@ -305,7 +260,7 @@ const Meetings: React.FC = () => {
           <EmptyState
             icon={Calendar}
             title={search ? 'No meetings match your search' : 'No meetings yet'}
-            description={search ? 'Try different keywords or clear the search' : 'Create your first meeting to start tracking and analyzing your discussions'}
+            description={search ? 'Try different keywords or clear the search' : 'Create your first meeting to get started'}
             action={
               search ? (
                 <button onClick={() => setSearch('')} className="text-sm font-medium text-primary-600 hover:text-primary-700">
@@ -314,7 +269,7 @@ const Meetings: React.FC = () => {
               ) : (
                 <button
                   onClick={() => setShowCreate(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700"
                 >
                   <Plus className="w-4 h-4" /> Create Meeting
                 </button>
